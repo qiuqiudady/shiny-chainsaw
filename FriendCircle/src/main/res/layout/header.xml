@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/profile_height"
+        android:id="@+id/profile"
+        android:scaleType="centerCrop"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:alpha="0.05"
+        android:background="@android:color/black" />
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginRight="@dimen/tweet_list_horizontal_padding"
+        android:layout_marginEnd="@dimen/tweet_list_horizontal_padding"
+        android:layout_marginTop="@dimen/avatar_margin_to_profile">
+
+        <TextView
+            android:id="@+id/nick"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_toLeftOf="@id/avatar"
+            android:singleLine="true" />
+        <ImageView
+            android:layout_width="@dimen/user_avatar_size"
+            android:layout_height="@dimen/user_avatar_size"
+            android:layout_alignParentRight="true"
+            android:id="@+id/avatar"
+            android:background="@drawable/user_avatar_bg"
+            android:scaleType="centerCrop"/>
+    </RelativeLayout>
+</LinearLayout>

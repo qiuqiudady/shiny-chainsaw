@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">朋友圈</string>
+    <string name="fold_content">收起</string>
+    <string name="full_content">全文</string>
+</resources>

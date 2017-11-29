@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.support.v7.widget.GridLayout;
-import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
@@ -15,7 +14,6 @@ import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -29,18 +27,18 @@ import java.util.List;
 
 /**
  * @author yaobaocheng
- * *
+ * *This class is an adapter for binding data(user and tweets list) to RecyclerView
  */
 public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.BaseViewHolder> {
     private Activity mContext;
     private LinkedList<TweetBean> mTweetList;
     private UserBean mUser;
 
-    public LinkedList<TweetBean> getmTweetList() {
+    public LinkedList<TweetBean> getTweetList() {
         return mTweetList;
     }
 
-    public void setmTweetList(LinkedList<TweetBean> mTweetList) {
+    public void setTweetList(LinkedList<TweetBean> mTweetList) {
         this.mTweetList = mTweetList;
     }
 
@@ -52,7 +50,7 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
         this.mUser = mUser;
     }
 
-    // 每条content展开/收起的状态
+    // all contents' expand/collapse state
     private SparseArray<Integer> mTextStateList;
 
     // whether has header view
@@ -61,23 +59,25 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
     }
 
     /**
-     * recyclerview 中的布局类型
+     * item type of recyclerview
      */
-    private static final int TYPE_HEADER         = 0;  //header布局标志
-    private static final int TYPE_NORMAL         = 1;  //普通布局标志
+    private static final int TYPE_HEADER         = 0;  //header layout flag
+    private static final int TYPE_NORMAL         = 1;  //tweet layout flag
 
     /**
-     * content 默认展开显示的最大行数，超过限制可以收到展开／收起
+     * content line by default show, over it will collapse. we can expand/collapse it
      */
     private static final int MAX_LINE_COUNT      = 6;
     private static final int STATE_UNKNOWN       = -1;
-    private static final int STATE_NOT_OVERFLOW  = 1;       //文本行数没有超过限定行数
-    private static final int STATE_COLLAPSED     = 2;       //文本行数超过限定行数，进行折叠
-    private static final int STATE_EXPANDED      = 3;       //文本超过限定行数，被点击全文展开
+    private static final int STATE_NOT_OVERFLOW  = 1;
+    private static final int STATE_COLLAPSED     = 2;
+    private static final int STATE_EXPANDED      = 3;
 
+    // max images line for each tweet
     private static final int IMAGES_MAX_COLUMN = 3;
 
-    public static final int LOAD_TWEETS_NUM_EACH_TIME = 5;    // load 5 tweets each time
+    // load 5 tweets each time
+    public static final int LOAD_TWEETS_NUM_EACH_TIME = 5;
 
     // all images in memory, key:MD5 of url, value:Bitmap object
     private HashMap<String, Bitmap> mBitmapSet;
@@ -328,31 +328,32 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
 
         int state = mTextStateList.get(dataPosition, STATE_UNKNOWN);
 
-        //如果该item是第一次初始化，则取获取文本的行数
+        // when first load, init it
         if (state == STATE_UNKNOWN){
             content.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
                 @Override
                 public boolean onPreDraw() {
-                    //这个回掉会调用多次，获取玩行数后记得注销监听
+                    // after this callback is called, we should remove the listener
                     content.getViewTreeObserver().removeOnPreDrawListener(this);
 
-                    content.setMaxLines(MAX_LINE_COUNT); //设置最大显示行数
+                    content.setMaxLines(MAX_LINE_COUNT);
 
-                    //如果内容显示的行数大于限定显示行数
+                    // if content's line over MAX_LINE_COUNT, we should collapse it by default
                     if (content.getLineCount() > MAX_LINE_COUNT) {
-                        expandOrCollapse.setVisibility(View.VISIBLE);    //让其显示全文的文本框状态为显示
-                        expandOrCollapse.setText("全文");  //设置其文字为全文
-                        mTextStateList.put(dataPosition, STATE_COLLAPSED);
+                        expandOrCollapse.setVisibility(View.VISIBLE);
+                        expandOrCollapse.setText(mContext.getResources().getText(R.string.full_content));
+                        mTextStateList.put(dataPosition, STATE_COLLAPSED);  // save its expand/collapse state
                     } else {
-                        expandOrCollapse.setVisibility(View.GONE);   //显示全文隐藏
-                        mTextStateList.put(dataPosition,STATE_NOT_OVERFLOW);    //让其不能超过限定的行数
+                        // content's line is not over MAX_LINE_COUNT
+                        expandOrCollapse.setVisibility(View.GONE);
+                        mTextStateList.put(dataPosition,STATE_NOT_OVERFLOW);
                     }
                     return true;
                 }
             });
             content.setMaxLines(Integer.MAX_VALUE);
         } else {
-            //如果之前已经初始化过了，则使用保存的状态，无需在获取一次
+            // Current content's expand/collapse state has been inited
             switch (state){
                 case STATE_NOT_OVERFLOW:
                     expandOrCollapse.setVisibility(View.GONE);
@@ -360,12 +361,12 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
                 case STATE_COLLAPSED:
                     content.setMaxLines(MAX_LINE_COUNT);
                     expandOrCollapse.setVisibility(View.VISIBLE);
-                    expandOrCollapse.setText("全文");
+                    expandOrCollapse.setText(mContext.getResources().getText(R.string.full_content));
                     break;
                 case STATE_EXPANDED:
                     content.setMaxLines(Integer.MAX_VALUE);
                     expandOrCollapse.setVisibility(View.VISIBLE);
-                    expandOrCollapse.setText("收起");
+                    expandOrCollapse.setText(mContext.getResources().getText(R.string.fold_content));
                     break;
             }
         }
@@ -373,18 +374,18 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
         // set content
         content.setText(contentString);
 
-        //设置显示和收起的点击事件
+        //set expand and collapse click listener
         expandOrCollapse.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 int state = mTextStateList.get(dataPosition, STATE_UNKNOWN);
                 if (state == STATE_COLLAPSED){
                     content.setMaxLines(Integer.MAX_VALUE);
-                    expandOrCollapse.setText("收起");
+                    expandOrCollapse.setText(mContext.getResources().getText(R.string.fold_content));
                     mTextStateList.put(dataPosition, STATE_EXPANDED);
                 }else if (state == STATE_EXPANDED){
                     content.setMaxLines(MAX_LINE_COUNT);
-                    expandOrCollapse.setText("全文");
+                    expandOrCollapse.setText(mContext.getResources().getText(R.string.full_content));
                     mTextStateList.put(dataPosition, STATE_COLLAPSED);
                 }
             }
@@ -393,12 +394,16 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
 
     @Override
     public int getItemCount() {
+        // here should consider header
         if (null == mTweetList || mTweetList.size() == 0) {
             return hasHeader() ? 1 : 0;
         }
         return mTweetList.size() + (hasHeader() ? 1 : 0);
     }
 
+    /**
+     * Define a BaseViewHolder for header/tweet item in RecyclerView
+     */
     public class BaseViewHolder extends RecyclerView.ViewHolder {
         private SparseArray<View> mViews;
 
@@ -427,69 +432,5 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
         public ImageView getImageView(int id) {
             return findView(id);
         }
-
-        public Button getButton(int id) {
-            return findView(id);
-        }
-    }
-
-    public abstract static class EndLessOnScrollListener extends  RecyclerView.OnScrollListener{
-
-        //声明一个LinearLayoutManager
-        private LinearLayoutManager mLinearLayoutManager;
-
-        //当前页，从0开始
-        private int currentPage = 0;
-
-        //已经加载出来的Item的数量
-        private int totalItemCount;
-
-        //主要用来存储上一个totalItemCount
-        private int previousTotal = 0;
-
-        //在屏幕上可见的item数量
-        private int visibleItemCount;
-
-        //在屏幕可见的Item中的第一个
-        private int firstVisibleItem;
-
-        //是否正在上拉数据
-        private boolean loading = true;
-
-        public EndLessOnScrollListener(LinearLayoutManager linearLayoutManager) {
-            this.mLinearLayoutManager = linearLayoutManager;
-        }
-
-        @Override
-        public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
-            super.onScrolled(recyclerView, dx, dy);
-
-            visibleItemCount = recyclerView.getChildCount();
-            totalItemCount = mLinearLayoutManager.getItemCount();
-            firstVisibleItem = mLinearLayoutManager.findFirstVisibleItemPosition();
-            if(loading){
-                //Log.d("wnwn","firstVisibleItem: " +firstVisibleItem);
-                //Log.d("wnwn","totalPageCount:" +totalItemCount);
-                //Log.d("wnwn", "visibleItemCount:" + visibleItemCount)；
-
-                if(totalItemCount > previousTotal){
-                    //说明数据已经加载结束
-                    loading = false;
-                    previousTotal = totalItemCount;
-                }
-            }
-            //这里需要好好理解
-            if (!loading && totalItemCount-visibleItemCount <= firstVisibleItem){
-                currentPage ++;
-                onLoadMore(currentPage);
-                loading = true;
-            }
-        }
-
-        /**
-         * 提供一个抽闲方法，在Activity中监听到这个EndLessOnScrollListener
-         * 并且实现这个方法
-         * */
-        public abstract void onLoadMore(int currentPage);
     }
 }

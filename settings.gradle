@@ -1,1 +1,1 @@
-include ':app', ':myfirstmoudle'
+include ':FriendCircle'

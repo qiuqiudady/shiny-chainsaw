@@ -1,0 +1,18 @@
+<resources>
+    <!-- Default screen margins, per the Android Design guidelines. -->
+    <dimen name="tweet_list_horizontal_padding">8dp</dimen>
+    <dimen name="tweet_list_vertical_padding">8dp</dimen>
+    <dimen name="profile_height">350dp</dimen>
+    <dimen name="avatar_margin_to_profile">-40dp</dimen>
+    <dimen name="text_size">14sp</dimen>
+    <dimen name="user_avatar_size">80dp</dimen>
+    <dimen name="sender_avatar_size">40dp</dimen>
+    <dimen name="avatar_marginright">8dp</dimen>
+    <dimen name="images_margin_top_to_content">8dp</dimen>
+    <dimen name="comments_margin_top_to_images">8dp</dimen>
+
+    <dimen name="max_width_single_image">400dp</dimen>
+    <dimen name="max_height_single_image">600dp</dimen>
+
+    <dimen name="image_margins">4dp</dimen>
+</resources>

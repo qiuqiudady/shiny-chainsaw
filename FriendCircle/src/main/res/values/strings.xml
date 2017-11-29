@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">FriendCircle</string>
+    <string name="fold_content">fold</string>
+    <string name="full_content">full</string>
+</resources>
