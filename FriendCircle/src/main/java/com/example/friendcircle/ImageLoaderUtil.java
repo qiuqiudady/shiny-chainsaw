@@ -274,9 +274,11 @@ public class ImageLoaderUtil {
             if (null == snapshot) {
                 final Request req = new Request.Builder().url(url).build();
                 Response res = mOkHttpClient.newCall(req).execute();
-                Bitmap bitmap = decodeBitmapFromBytes(res.body().bytes(), reqWidth, reqHeight);
-                mBitmapSet.put(key, bitmap);
-                writeBitmapToDiskCache(key, bitmap);
+                if (res.isSuccessful()) {
+                    Bitmap bitmap = decodeBitmapFromBytes(res.body().bytes(), reqWidth, reqHeight);
+                    mBitmapSet.put(key, bitmap);
+                    writeBitmapToDiskCache(key, bitmap);
+                }
             } else {
                 // current image has disk cache, use it
                 Bitmap bitmap = decodeBitmapFromStream(snapshot.getInputStream(0), reqWidth, reqHeight);
