@@ -79,7 +79,10 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
     // load 5 tweets each time
     public static final int LOAD_TWEETS_NUM_EACH_TIME = 5;
 
-    // all images in memory, key:MD5 of url, value:Bitmap object
+    /**
+     * All images in memory, key:MD5 of url, value:Bitmap object
+     * Because this HashMap is set by method "setmBitmapSet" from outer, the recycle of data is the owner of outer
+      */
     private HashMap<String, Bitmap> mBitmapSet;
 
     public void setmBitmapSet(HashMap<String, Bitmap> mBitmapSet) {
@@ -255,6 +258,9 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
         }
     }
 
+    /**
+     * define the constants for specially handle when 4 images in total
+     */
     private static final int IMAGE_COUNT_FOUR = 4;
     private static final int IMAGE_INVISIABLE_VIEW_INDEX = 2;
     /**

@@ -12,12 +12,12 @@ import com.example.friendcircle.bean.TweetBean;
 import com.example.friendcircle.bean.UserBean;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 
 public class MainActivity extends AppCompatActivity {
     private RecyclerView mRecyclerView;
     private SwipeRefreshLayout mRefreshLayout;
+    private ImageLoaderUtil mImageLoaderUtil;
 
     /**
      * below 3 fields is from ImageLoaderUtil, we should copy pointer to avoid data conflict when refresh
@@ -36,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
         LinearLayoutManager linearLayoutManager =  new LinearLayoutManager(this,LinearLayoutManager.VERTICAL,false);
         mRecyclerView.setLayoutManager(linearLayoutManager);
         mRecyclerView.setAdapter(new TweetListAdapter(MainActivity.this));
-        final ImageLoaderUtil imageLoaderUtil = new ImageLoaderUtil(this, mCallBack);
+        mImageLoaderUtil = new ImageLoaderUtil(this, mCallBack);
 
         // set onScrollListener
         onScrollListener = new RecyclerView.OnScrollListener() {
@@ -57,7 +57,7 @@ public class MainActivity extends AppCompatActivity {
 
                     // if scroll to end and scroll action is pull up, we should load more tweets
                     if (lastVisibleItem == (totalItemCount - 1) && flagPullup) {
-                        loadMoreTweets(imageLoaderUtil);
+                        loadMoreTweets(mImageLoaderUtil);
                     }
                 }
             }
@@ -81,12 +81,12 @@ public class MainActivity extends AppCompatActivity {
         mRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                startFetchAll(imageLoaderUtil);
+                startFetchAll(mImageLoaderUtil);
             }
         });
 
         // start fetch data from network
-        startFetchAll(imageLoaderUtil);
+        startFetchAll(mImageLoaderUtil);
     }
 
     /**
@@ -166,7 +166,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 // release old images hashmap
-                releaseImagesHashMap(oldToRelease);
+                ImageLoaderUtil.releaseImagesHashMap(oldToRelease);
             }
         }
 
@@ -175,22 +175,6 @@ public class MainActivity extends AppCompatActivity {
             // TODO show error page
         }
     };
-
-    /**
-     * release iamges hashmap(call Bitmap.recycle for each one)
-     * @param imagesMap
-     */
-    private void releaseImagesHashMap(HashMap<String, Bitmap> imagesMap) {
-        if (null != imagesMap && !imagesMap.isEmpty()) {
-            Iterator it = imagesMap.entrySet().iterator();
-            while (it.hasNext()) {
-                HashMap.Entry entry = (HashMap.Entry) it.next();
-                if (entry.getValue() instanceof Bitmap) {
-                    ((Bitmap) entry.getValue()).recycle();
-                }
-            }
-        }
-    }
 
     /**
      * send a message to download JSON from server and parse them(include user and tweets list);
@@ -212,6 +196,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         mRecyclerView.removeOnScrollListener(onScrollListener);
-        releaseImagesHashMap(mBitmapSet);
+        ImageLoaderUtil.releaseImagesHashMap(mBitmapSet);
+        mImageLoaderUtil.release();
     }
 }

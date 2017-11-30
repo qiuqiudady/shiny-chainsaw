@@ -28,6 +28,7 @@ import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 
 /**
@@ -373,5 +374,30 @@ public class ImageLoaderUtil {
             sb.append(hex);
         }
         return sb.toString();
+    }
+
+    /**
+     * release iamges hashmap(call Bitmap.recycle for each one)
+     * @param imagesMap
+     */
+    public static void releaseImagesHashMap(HashMap<String, Bitmap> imagesMap) {
+        if (null != imagesMap && !imagesMap.isEmpty()) {
+            Iterator it = imagesMap.entrySet().iterator();
+            while (it.hasNext()) {
+                HashMap.Entry entry = (HashMap.Entry) it.next();
+                if (entry.getValue() instanceof Bitmap) {
+                    ((Bitmap) entry.getValue()).recycle();
+                }
+            }
+        }
+    }
+
+    /**
+     * release resources for this instance
+     */
+    public void release() {
+        if (null != mHandler) {
+            mHandler.getLooper().quit();
+        }
     }
 }
