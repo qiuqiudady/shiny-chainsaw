@@ -36,7 +36,8 @@ public class MainActivity extends AppCompatActivity {
         LinearLayoutManager linearLayoutManager =  new LinearLayoutManager(this,LinearLayoutManager.VERTICAL,false);
         mRecyclerView.setLayoutManager(linearLayoutManager);
         mRecyclerView.setAdapter(new TweetListAdapter(MainActivity.this));
-        mImageLoaderUtil = new ImageLoaderUtil(this, mCallBack);
+        mImageLoaderUtil = ImageLoaderUtil.getInstance(this);
+        mImageLoaderUtil.addCallBack(mCallBack);
 
         // set onScrollListener
         onScrollListener = new RecyclerView.OnScrollListener() {
@@ -97,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
         // cancel refresh when pull up to load more
         if (mRefreshLayout.isRefreshing()) {
             mRefreshLayout.setRefreshing(false);
-            imageLoaderUtil.mHandler.removeMessages(ImageLoaderUtil.MSG_CODE_GET_ALL);
+            imageLoaderUtil.getmHandler().removeMessages(ImageLoaderUtil.MSG_CODE_GET_ALL);
         }
 
         int currentAdapted = 0;
@@ -120,14 +121,23 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * download json and images in sub-thread, this callback is called on UI thread when task is done
+     * download json and images in sub-thread, this callback is called on Sub-thread when task is done
      */
     private ImageLoaderUtil.CallBack mCallBack = new ImageLoaderUtil.CallBack() {
         @Override
         public void onResponse(final ImageLoaderUtil imageLoaderUtil, final int msg) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    response(imageLoaderUtil, msg);
+                }
+            });
+        }
+
+        private void response(ImageLoaderUtil imageLoaderUtil, int msg) {
             // fetch user and tweets list Json successfully, now we should set adapter for RecyclerView
             if (ImageLoaderUtil.MSG_CODE_GET_ALL == msg) {
-                if (!imageLoaderUtil.mUser.isValid()) {
+                if (!imageLoaderUtil.getmUser().isValid()) {
                     // TODO show error page
                     return;
                 }
@@ -144,9 +154,9 @@ public class MainActivity extends AppCompatActivity {
                 HashMap<String,Bitmap> oldToRelease = mBitmapSet;
 
                 // copy a pointer avoid to data conflict when refresh
-                mTweetList = imageLoaderUtil.mTweetList;
-                mUser = imageLoaderUtil.mUser;
-                mBitmapSet = imageLoaderUtil.mBitmapSet;
+                mTweetList = imageLoaderUtil.getmTweetList();
+                mUser = imageLoaderUtil.getmUser();
+                mBitmapSet = imageLoaderUtil.getmBitmapSet();
 
                 // just show 5 of them
                 final LinkedList<TweetBean> tweetsToAdapter = new LinkedList<>();
@@ -188,8 +198,8 @@ public class MainActivity extends AppCompatActivity {
         data.putString(ImageLoaderUtil.KEY_USER_URL, "http://thoughtworks-ios.herokuapp.com/user/jsmith");
         data.putString(ImageLoaderUtil.KEY_TWEET_LIST_URL, "http://thoughtworks-ios.herokuapp.com/user/jsmith/tweets");
         msg.setData(data);
-        imageLoaderUtil.mHandler.removeMessages(ImageLoaderUtil.MSG_CODE_GET_ALL);
-        imageLoaderUtil.mHandler.sendMessage(msg);
+        imageLoaderUtil.getmHandler().removeMessages(ImageLoaderUtil.MSG_CODE_GET_ALL);
+        imageLoaderUtil.getmHandler().sendMessage(msg);
     }
 
     @Override
@@ -197,6 +207,7 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         mRecyclerView.removeOnScrollListener(onScrollListener);
         ImageLoaderUtil.releaseImagesHashMap(mBitmapSet);
-        mImageLoaderUtil.release();
+        mImageLoaderUtil.removeCallBack(mCallBack);
+        mImageLoaderUtil.releaseResForMainListPage();
     }
 }

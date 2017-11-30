@@ -1,6 +1,5 @@
 package com.example.friendcircle;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -27,47 +26,110 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 
 /**
  * Created by pc on 2017/11/27.
- * This class is used for download json and images in Sub-thread
+ * This class is used for download json and images in Sub-thread。
+ * It's a single instance, but not multi-thread safe.
+ * We can use it in some activities or services, they can add own callback.
+ * Because its life cycle is the same with application, so no need to release its whole scope res.
  */
 public class ImageLoaderUtil {
 
+    private static ImageLoaderUtil mInstance;
     private OkHttpClient mOkHttpClient;
-    private Activity mActivity;
+
+    // because it's a single instance, so mContext should be Application Context at best
+    private Context mContext;
 
     // sub-thread handler, receive message to handle download and parse work
-    public Handler mHandler;
-
-    public LinkedList<TweetBean> mTweetList;   // tweets list
-    public UserBean mUser;
+    private Handler mHandler;
+    private LinkedList<TweetBean> mTweetList;   // tweets list
+    private UserBean mUser;
 
     // load all images to memory, key:MD5 of url, value:Bitmap object
-    public HashMap<String, Bitmap> mBitmapSet;
+    private HashMap<String, Bitmap> mBitmapSet;
+    public Handler getmHandler() {
+        return mHandler;
+    }
 
+    public LinkedList<TweetBean> getmTweetList() {
+        return mTweetList;
+    }
+
+    public UserBean getmUser() {
+        return mUser;
+    }
+
+    public HashMap<String, Bitmap> getmBitmapSet() {
+        return mBitmapSet;
+    }
+
+    /**
+     * Here we can expand other time waste action
+     */
     public static final int MSG_CODE_GET_ALL = 0x01;
     public static final String KEY_USER_URL = "user_url";
     public static final String KEY_TWEET_LIST_URL = "tweet_list_url";
     private static final int DISK_CACHE_SIZE = 10*1024*1024;
 
     /**
-     * callback after network request, it runs on UI thread
+     * callback after time-waste action, it runs on Sub-thread
       */
-    private CallBack mCallBack;
+    private ArrayList<CallBack> mCallBacks = new ArrayList<>();
 
     public interface CallBack {
         void onResponse(final ImageLoaderUtil imageLoaderUtil, final int msgCode);
         void onFailure(final ImageLoaderUtil imageLoaderUtil, final int msgCode);
     }
 
-    public ImageLoaderUtil(final Activity activity, final CallBack callBack) {
-        mActivity = activity;
+    /**
+     * add a callback listener
+     * @param callBack
+     */
+    public void addCallBack(CallBack callBack) {
+        if (null != callBack) {
+            mCallBacks.add(callBack);
+        }
+    }
+
+    /**
+     * remove a callback listener
+     * @param callBack
+     * @return
+     */
+    public boolean removeCallBack(CallBack callBack) {
+        if (null == callBack) return false;
+        return mCallBacks.remove(callBack);
+    }
+
+    /**
+     * After time-waste action done, execute all callbacks
+     * @param msgCode  action type
+     */
+    private void executeCallBacksOnResponse(int msgCode) {
+        for (CallBack callBack : mCallBacks) {
+            callBack.onResponse(this, msgCode);
+        }
+    }
+
+    /**
+     * After time-waste action done, execute all callbacks
+     * @param msgCode  action type
+     */
+    private void executeCallBacksOnFailure(int msgCode) {
+        for (CallBack callBack : mCallBacks) {
+            callBack.onFailure(this, msgCode);
+        }
+    }
+
+    private ImageLoaderUtil(final Context context) {
+        mContext = context;
         mOkHttpClient = new OkHttpClient();
-        mCallBack = callBack;
         HandlerThread handlerThread = new HandlerThread("network_thread");
         handlerThread.start();
         mHandler = new Handler(handlerThread.getLooper()) {
@@ -81,32 +143,27 @@ public class ImageLoaderUtil {
                         if (ret) {
                             // For images,download from network or load from disk cache into memory
                             fetchAllImages();
-
-                            // if callback is not null , call it
-                            if (null != mCallBack) {
-                                mActivity.runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        mCallBack.onResponse(ImageLoaderUtil.this, MSG_CODE_GET_ALL);
-                                    }
-                                });
-                            }
+                            executeCallBacksOnResponse(MSG_CODE_GET_ALL);
                         } else {
-                            // if callback is not null , call it
-                            if (null != mCallBack) {
-                                mActivity.runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        mCallBack.onFailure(ImageLoaderUtil.this, MSG_CODE_GET_ALL);
-                                    }
-                                });
-                            }
+                            executeCallBacksOnFailure(MSG_CODE_GET_ALL);
                         }
                         // avoid frequent refresh action
                         removeMessages(MSG_CODE_GET_ALL);
                 }
             }
         };
+    }
+
+    /**
+     * get the single instance
+     * @param context
+     * @return
+     */
+    public static ImageLoaderUtil getInstance(final Context context) {
+        if (null == mInstance) {
+            mInstance = new ImageLoaderUtil(context);
+        }
+        return mInstance;
     }
 
     /**
@@ -269,7 +326,7 @@ public class ImageLoaderUtil {
 
         try {
             // make cache directory
-            File cacheDir = getDiskCacheDir(mActivity,"images");
+            File cacheDir = getDiskCacheDir(mContext,"images");
             if(!cacheDir.exists()) {
                 cacheDir.mkdirs();
             }
@@ -277,7 +334,7 @@ public class ImageLoaderUtil {
             // get current app version code
             int versionCode = 1;
             try {
-                PackageInfo info = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(),0);
+                PackageInfo info = mContext.getPackageManager().getPackageInfo(mContext.getPackageName(),0);
                 versionCode = info.versionCode;
             } catch (PackageManager.NameNotFoundException e) {
                 e.printStackTrace();
@@ -393,11 +450,20 @@ public class ImageLoaderUtil {
     }
 
     /**
-     * release resources for this instance
+     * release resources related to MainActivity.Keep other scope res.
+     * If sub-thread is using these res, we should queue to release.
      */
-    public void release() {
-        if (null != mHandler) {
-            mHandler.getLooper().quit();
-        }
+    public void releaseResForMainListPage() {
+        mHandler.removeMessages(MSG_CODE_GET_ALL);
+        mHandler.postAtFrontOfQueue(new Runnable() {
+            @Override
+            public void run() {
+                // just discard pointer of these instance, gc will recycle them.
+                // Keep their life cycle the same with MainActivity
+                mUser = null;
+                mTweetList = null;
+                mBitmapSet = null;
+            }
+        });
     }
 }
