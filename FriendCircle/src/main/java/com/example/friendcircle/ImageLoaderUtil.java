@@ -3,6 +3,7 @@ package com.example.friendcircle;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Environment;
@@ -10,6 +11,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
 import android.text.TextUtils;
+import android.view.WindowManager;
 
 import com.example.friendcircle.bean.TweetBean;
 import com.example.friendcircle.bean.UserBean;
@@ -19,11 +21,10 @@ import com.squareup.okhttp.Response;
 import com.squareup.okhttp.internal.DiskLruCache;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -202,7 +203,8 @@ public class ImageLoaderUtil {
     /**
      * Fetch all images for user and tweets list.
      * If it exists in disk cache, load it into memory directly,
-     * otherwise, download from network into disk cache then load it into memory.
+     * otherwise, download from network into disk cache and load it into memory.
+     * Here we decode bitmaps with used size
      */
     private void fetchAllImages() {
         mBitmapSet = new HashMap<>();
@@ -210,13 +212,18 @@ public class ImageLoaderUtil {
         // open disk cache
         openDiskLruCache();
 
+        int screenWidth = ((WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE))
+                .getDefaultDisplay().getWidth();
+        Resources res = mContext.getResources();
+
         // if User is valid, load its profile and avatar
         if (mUser.isValid()) {
             if (!TextUtils.isEmpty(mUser.getProfileimage())) {
-                loadImage(mUser.getProfileimage());
+                loadImage(mUser.getProfileimage(), screenWidth, res.getDimensionPixelOffset(R.dimen.profile_height));
             }
             if (!TextUtils.isEmpty(mUser.getAvatar())) {
-                loadImage(mUser.getAvatar());
+                loadImage(mUser.getAvatar(), res.getDimensionPixelOffset(R.dimen.user_avatar_size),
+                        res.getDimensionPixelOffset(R.dimen.user_avatar_size));
             }
         }
 
@@ -224,12 +231,20 @@ public class ImageLoaderUtil {
         for (TweetBean tweetBean : mTweetList) {
             String url = tweetBean.getSender().getAvatar();
             if (!TextUtils.isEmpty(url)) {
-                loadImage(url);
+                loadImage(url, res.getDimensionPixelOffset(R.dimen.sender_avatar_size),
+                        res.getDimensionPixelOffset(R.dimen.sender_avatar_size));
             }
             if (null == tweetBean.getImages()) {continue;}
             for (TweetBean.ImagesBean imagesBean : tweetBean.getImages()) {
-                if (!TextUtils.isEmpty(imagesBean.getUrl())) {
-                    loadImage(imagesBean.getUrl());
+                if (TextUtils.isEmpty(imagesBean.getUrl())) continue;
+
+                // when a single image
+                if (1 == tweetBean.getImages().size()) {
+                    loadImage(imagesBean.getUrl(), res.getDimensionPixelOffset(R.dimen.max_width_single_image),
+                            res.getDimensionPixelOffset(R.dimen.max_height_single_image));
+                } else {
+                    // when multi images. now just use 1/3 of screen width
+                    loadImage(imagesBean.getUrl(), screenWidth/3,screenWidth/3);
                 }
             }
         }
@@ -240,45 +255,91 @@ public class ImageLoaderUtil {
         }
     }
 
-    private void loadImage(String url){
+    /**
+     * If the image exists in disk cache, then load it with reqWidth and reqHeight.
+     * Otherwise, download from network, write into disk cache, and then load with reqWidth and reqHeight.
+     * @param url
+     * @param reqWidth
+     * @param reqHeight
+     */
+    private void loadImage(String url, int reqWidth, int reqHeight){
         // use MD5 decode url for key of disk cache
         String key = decodeMD5(url);
-        DiskLruCache.Snapshot snapshot = null;
-        DiskLruCache.Editor editor = null;
-        BufferedOutputStream bos = null;
-        BufferedInputStream bis = null;
+
         try {
             // use MD5 of url as Disk cache file name, and mBitmapSet's key
-            snapshot = mDiskLruCache.get(key);
+            DiskLruCache.Snapshot snapshot = mDiskLruCache.get(key);
 
             // current image file has no disk cache, download
             if (null == snapshot) {
-                final Request req = new Request.Builder().url("http://192.168.3.16/docs/images/tomcat.png").build();  // TODO  revert url
+                final Request req = new Request.Builder().url(url).build();
                 Response res = mOkHttpClient.newCall(req).execute();
-                editor = mDiskLruCache.edit(key);
-
-                // write to disk cache
-                if (null != editor) {
-                    OutputStream outputStream = editor.newOutputStream(0);
-
-                    byte[] bt = new byte[1024];
-                    int read;
-                    bos = new BufferedOutputStream(outputStream, 2*1024);
-                    bis = new BufferedInputStream(res.body().byteStream(), 2*1024);
-                    while ((read = bis.read(bt, 0, bt.length)) != -1) {
-                        bos.write(bt, 0, read);
-                    }
-                    bos.close();
-                    bos = null;
-                    bis.close();
-                    bis = null;
-                    editor.commit();
-                    editor = null;
-                    mDiskLruCache.flush();
-                }
+                Bitmap bitmap = decodeBitmapFromBytes(res.body().bytes(), reqWidth, reqHeight);
+                mBitmapSet.put(key, bitmap);
+                writeBitmapToDiskCache(key, bitmap);
+            } else {
+                // current image has disk cache, use it
+                Bitmap bitmap = decodeBitmapFromStream(snapshot.getInputStream(0), reqWidth, reqHeight);
+                mBitmapSet.put(key, bitmap);
             }
         } catch (IOException e) {
-            System.out.println("IOException");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * decode bitmap from InputStream
+     * @param is
+     * @param reqWidth
+     * @param reqHeight
+     * @return
+     */
+    public static Bitmap decodeBitmapFromStream(InputStream is, int reqWidth, int reqHeight) {
+        ByteArrayOutputStream baos = null;
+        BufferedInputStream bis = null;
+        try {
+            baos = new ByteArrayOutputStream();
+            byte[] bt = new byte[1024];
+            int read;
+            bis = new BufferedInputStream(is, 2*1024);
+            while ((read = bis.read(bt, 0, bt.length)) != -1) {
+                baos.write(bt, 0, read);
+            }
+            baos.close();
+            bis.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (null != bis) {
+                    bis.close();
+                }
+                if (null != baos) {
+                    baos.close();
+                }
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+        }
+
+        Bitmap bitmap = decodeBitmapFromBytes(baos.toByteArray(), reqWidth, reqHeight);
+        return bitmap;
+    }
+
+    /**
+     * write bitmap to disk cache
+     * @param key
+     * @param bitmap
+     */
+    private void writeBitmapToDiskCache(String key, Bitmap bitmap) {
+        // write into disk cache
+        DiskLruCache.Editor editor = null;
+        try {
+            editor = mDiskLruCache.edit(key);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, editor.newOutputStream(0));
+            editor.commit();
+            mDiskLruCache.flush();
+        } catch (IOException e) {
             if (null != editor) {
                 try {
                     editor.abort();
@@ -286,33 +347,6 @@ public class ImageLoaderUtil {
                     e1.printStackTrace();
                 }
             }
-        } finally {
-            try {
-                if (null != bis) {
-                    bis.close();
-                }
-                if (null != bos) {
-                    bos.close();
-                }
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-        }
-
-        if (null == snapshot) {
-            // read snap from disk cache again
-            try {
-                snapshot = mDiskLruCache.get(key);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        if (null != snapshot) {
-            // TODO
-            // Bitmap bitmap = decodeBitmapFromStream(snapshot.getInputStream(0), 120, 120);
-            Bitmap bitmap = BitmapFactory.decodeStream(snapshot.getInputStream(0));
-            mBitmapSet.put(key, bitmap);
         }
     }
 
@@ -365,28 +399,23 @@ public class ImageLoaderUtil {
 
     /**
      * decode bitmap with size of reqWidth and reqHeight from inputstream
-     * @param is
+     * @param bytes
      * @param reqWidth
      * @param reqHeight
      * @return
      */
-    public static Bitmap decodeBitmapFromStream(InputStream is, int reqWidth, int reqHeight) {
+    public static Bitmap decodeBitmapFromBytes(byte[] bytes, int reqWidth, int reqHeight) {
         // First decode with inJustDecodeBounds=true to check dimensions
         final BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
-        BitmapFactory.decodeStream(is, null, options);
-        try {
-            is.reset();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        BitmapFactory.decodeByteArray(bytes, 0 ,bytes.length, options);
 
         // Calculate inSampleSize
         options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
 
         // Decode bitmap with inSampleSize set
         options.inJustDecodeBounds = false;
-        return BitmapFactory.decodeStream(is, null, options);
+        return BitmapFactory.decodeByteArray(bytes, 0 ,bytes.length, options);
     }
 
     private static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {

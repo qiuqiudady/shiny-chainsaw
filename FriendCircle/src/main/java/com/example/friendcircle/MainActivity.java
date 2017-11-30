@@ -186,6 +186,8 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private static final String USER_URL = "http://192.168.3.16/test/user";    //"http://thoughtworks-ios.herokuapp.com/user/jsmith"
+    private static final String TWEETS_LIST_URL = "http://192.168.3.16/test/tweets";   //"http://thoughtworks-ios.herokuapp.com/user/jsmith/tweets"
     /**
      * send a message to download JSON from server and parse them(include user and tweets list);
      * Then download all images.
@@ -195,8 +197,8 @@ public class MainActivity extends AppCompatActivity {
         Message msg = new Message();
         msg.what = ImageLoaderUtil.MSG_CODE_GET_ALL;
         Bundle data = new Bundle();
-        data.putString(ImageLoaderUtil.KEY_USER_URL, "http://thoughtworks-ios.herokuapp.com/user/jsmith");
-        data.putString(ImageLoaderUtil.KEY_TWEET_LIST_URL, "http://thoughtworks-ios.herokuapp.com/user/jsmith/tweets");
+        data.putString(ImageLoaderUtil.KEY_USER_URL, USER_URL);
+        data.putString(ImageLoaderUtil.KEY_TWEET_LIST_URL, TWEETS_LIST_URL);
         msg.setData(data);
         imageLoaderUtil.getmHandler().removeMessages(ImageLoaderUtil.MSG_CODE_GET_ALL);
         imageLoaderUtil.getmHandler().sendMessage(msg);
