@@ -7,6 +7,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.widget.Toast;
 
 import com.example.friendcircle.bean.TweetBean;
 import com.example.friendcircle.bean.UserBean;
@@ -137,11 +138,6 @@ public class MainActivity extends AppCompatActivity {
         private void response(ImageLoaderUtil imageLoaderUtil, int msg) {
             // fetch user and tweets list Json successfully, now we should set adapter for RecyclerView
             if (ImageLoaderUtil.MSG_CODE_GET_ALL == msg) {
-                if (!imageLoaderUtil.getmUser().isValid()) {
-                    // TODO show error page
-                    return;
-                }
-
                 // current is refresh action, but it's been cancelled
                 if (null != mTweetList && !mRefreshLayout.isRefreshing()) {
                     return;
@@ -149,6 +145,10 @@ public class MainActivity extends AppCompatActivity {
 
                 // set UI show no refreshing
                 mRefreshLayout.setRefreshing(false);
+                if (!imageLoaderUtil.getmUser().isValid()) {
+                    showErrorPage();
+                    return;
+                }
 
                 // release memory of old bitmap hashmap
                 HashMap<String,Bitmap> oldToRelease = mBitmapSet;
@@ -182,10 +182,22 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onFailure(ImageLoaderUtil imageLoaderUtil, int msg) {
-            // TODO show error page
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    // set UI show no refreshing
+                    mRefreshLayout.setRefreshing(false);
+                    showErrorPage();
+                }
+            });
         }
     };
 
+    private void showErrorPage() {
+        Toast.makeText(this, R.string.network_access_error, Toast.LENGTH_LONG).show();
+    }
+
+    // because the images included in given url cannot be access, use my own test url.
     private static final String USER_URL = "http://192.168.3.16/test/user";    //"http://thoughtworks-ios.herokuapp.com/user/jsmith"
     private static final String TWEETS_LIST_URL = "http://192.168.3.16/test/tweets";   //"http://thoughtworks-ios.herokuapp.com/user/jsmith/tweets"
     /**

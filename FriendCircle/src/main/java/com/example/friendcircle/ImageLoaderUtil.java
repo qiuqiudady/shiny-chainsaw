@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by pc on 2017/11/27.
@@ -131,6 +132,9 @@ public class ImageLoaderUtil {
     private ImageLoaderUtil(final Context context) {
         mContext = context;
         mOkHttpClient = new OkHttpClient();
+        mOkHttpClient.setConnectTimeout(5, TimeUnit.SECONDS);
+        mOkHttpClient.setReadTimeout(5, TimeUnit.SECONDS);
+        mOkHttpClient.setWriteTimeout(10, TimeUnit.SECONDS);
         HandlerThread handlerThread = new HandlerThread("network_thread");
         handlerThread.start();
         mHandler = new Handler(handlerThread.getLooper()) {
@@ -195,6 +199,7 @@ public class ImageLoaderUtil {
             }
         } catch (IOException e) {
             System.out.println("Network access exception");
+            e.printStackTrace();
             ret = false;
         }
         return ret;

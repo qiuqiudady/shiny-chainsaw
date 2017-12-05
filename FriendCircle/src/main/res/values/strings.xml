@@ -2,4 +2,5 @@
     <string name="app_name">FriendCircle</string>
     <string name="fold_content">fold</string>
     <string name="full_content">full</string>
+    <string name="network_access_error">Network access error.</string>
 </resources>
