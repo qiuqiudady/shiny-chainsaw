@@ -1,7 +1,8 @@
 package com.example.friendcircle;
 
 import android.app.Activity;
-import android.graphics.Bitmap;
+import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.support.v7.widget.GridLayout;
 import android.support.v7.widget.RecyclerView;
@@ -9,11 +10,13 @@ import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
+import android.util.Log;
 import android.util.SparseArray;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -21,7 +24,6 @@ import android.widget.TextView;
 import com.example.friendcircle.bean.TweetBean;
 import com.example.friendcircle.bean.UserBean;
 
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -30,9 +32,11 @@ import java.util.List;
  * *This class is an adapter for binding data(user and tweets list) to RecyclerView
  */
 public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.BaseViewHolder> {
+    private static final String TAG = "TweetListAdapter";
     private Activity mContext;
     private LinkedList<TweetBean> mTweetList;
     private UserBean mUser;
+    private ImageLoader mImageLoader;
 
     public LinkedList<TweetBean> getTweetList() {
         return mTweetList;
@@ -40,10 +44,6 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
 
     public void setTweetList(LinkedList<TweetBean> mTweetList) {
         this.mTweetList = mTweetList;
-    }
-
-    public UserBean getmUser() {
-        return mUser;
     }
 
     public void setmUser(UserBean mUser) {
@@ -79,28 +79,9 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
     // load 5 tweets each time
     public static final int LOAD_TWEETS_NUM_EACH_TIME = 5;
 
-    /**
-     * All images in memory, key:MD5 of url, value:Bitmap object
-     * Because this HashMap is set by method "setmBitmapSet" from outer, the recycle of data is the owner of outer
-      */
-    private HashMap<String, Bitmap> mBitmapSet;
-
-    public void setmBitmapSet(HashMap<String, Bitmap> mBitmapSet) {
-        this.mBitmapSet = mBitmapSet;
-    }
-
-    /**
-     * find bitmap from HashMap with url string
-     * @param url
-     * @return
-     */
-    private Bitmap getBitmap(String url) {
-        if (null == mBitmapSet || null == url) return null;
-        return mBitmapSet.get(ImageLoaderUtil.decodeMD5(url));
-    }
-
-    public TweetListAdapter(Activity context) {
+    public TweetListAdapter(Activity context, ImageLoader imageLoader) {
         mContext = context;
+        mImageLoader = imageLoader;
         mTextStateList = new SparseArray();
     }
 
@@ -138,9 +119,18 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
         ImageView avatar = holder.getImageView(R.id.avatar);
         TextView nick = holder.getTextView(R.id.nick);
 
+        int screenWidth = ((WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE))
+                .getDefaultDisplay().getWidth();
+        Resources res = mContext.getResources();
+
         //set profile and avatar
-        profile.setImageBitmap(getBitmap(mUser.getProfileimage()));
-        avatar.setImageBitmap(getBitmap(mUser.getAvatar()));
+        mImageLoader.bindBitmap(profile, mUser.getProfileimage(), screenWidth,
+                res.getDimensionPixelOffset(R.dimen.profile_height));
+
+        mImageLoader.bindBitmap(avatar, mUser.getAvatar(),
+                res.getDimensionPixelOffset(R.dimen.user_avatar_size),
+                res.getDimensionPixelOffset(R.dimen.user_avatar_size));
+
         nick.setText(mUser.getNick());
     }
 
@@ -162,7 +152,11 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
         final GridLayout images = (GridLayout)holder.getView(R.id.images_layout);
         final LinearLayout comments = (LinearLayout)holder.getView(R.id.comments_layout);
 
-        avatar.setImageBitmap(getBitmap(tweet.getSender().getAvatar()));
+        Resources res = mContext.getResources();
+        mImageLoader.bindBitmap(avatar, tweet.getSender().getAvatar(),
+                res.getDimensionPixelOffset(R.dimen.sender_avatar_size),
+                res.getDimensionPixelOffset(R.dimen.sender_avatar_size));
+
         nick.setText(tweet.getSender().getNick());
         bindContent(dataPosition, tweet.getContent(), content, expandOrCollapse);
         bindImages(images, tweet.getImages());
@@ -243,7 +237,6 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
             // create a SquareImageView instance
             ImageView imageView = new SquareImageView(mContext);
             imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            imageView.setImageBitmap(getBitmap(images.get(i).getUrl()));
 
             //set width to 0, using weight value
             GridLayout.LayoutParams layoutParams = new GridLayout.LayoutParams(new ViewGroup.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -253,8 +246,12 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
             layoutParams.columnSpec = columnSpec;
             int margins = mContext.getResources().getDimensionPixelOffset(R.dimen.image_margins);
             layoutParams.setMargins(margins, margins, margins, margins);
-
             imagesLayout.addView(imageView, layoutParams);
+
+            int screenWidth = ((WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE))
+                    .getDefaultDisplay().getWidth();
+            mImageLoader.bindBitmap(imageView, images.get(i).getUrl(),
+                    screenWidth/3 ,screenWidth/3);
         }
     }
 
@@ -304,9 +301,12 @@ public class TweetListAdapter extends RecyclerView.Adapter<TweetListAdapter.Base
         ImageView imageView = new ImageView(mContext);
         imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
         imageView.setAdjustViewBounds(true);
-        imageView.setMaxHeight(mContext.getResources().getDimensionPixelOffset(R.dimen.max_height_single_image));
-        imageView.setMaxWidth(mContext.getResources().getDimensionPixelOffset(R.dimen.max_width_single_image));
-        imageView.setImageBitmap(getBitmap(imagesBean.getUrl()));
+        Resources res = mContext.getResources();
+        imageView.setMaxHeight(res.getDimensionPixelOffset(R.dimen.max_height_single_image));
+        imageView.setMaxWidth(res.getDimensionPixelOffset(R.dimen.max_width_single_image));
+        mImageLoader.bindBitmap(imageView, imagesBean.getUrl(),
+                res.getDimensionPixelOffset(R.dimen.max_width_single_image),
+                res.getDimensionPixelOffset(R.dimen.max_height_single_image));
 
         GridLayout.Spec rowSpec = GridLayout.spec(0);
         GridLayout.Spec columnSpec = GridLayout.spec(0);
